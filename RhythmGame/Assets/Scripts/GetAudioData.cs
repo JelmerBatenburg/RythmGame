@@ -5,6 +5,7 @@ using UnityEngine;
 public class GetAudioData : MonoBehaviour
 {
     public AudioSource source;
+    public AudioClip clip;
     public float visualSize;
     public float detectLevel;
     public int samples;
@@ -12,11 +13,17 @@ public class GetAudioData : MonoBehaviour
     private float hertzASample;
     public List<AudioRecordData> songData = new List<AudioRecordData>();
     public bool doneSampling;
-    public float sampleDelay;
     public float beatStrenght;
+    public GameData gameData;
+    public GameObject samplingDisplay;
+    public AudioGameManager manager;
+    public float currentTime;
 
     public void Start()
     {
+        samplingDisplay.SetActive(true);
+        source.clip = clip;
+        source.Play();
         GetHertz();
         StartCoroutine(SamplingCheck());
     }
@@ -28,15 +35,32 @@ public class GetAudioData : MonoBehaviour
             GetAudioTypes();
             if (!source.isPlaying)
                 break;
-            yield return new WaitForSeconds(sampleDelay);
+            yield return null;
+            currentTime += Time.deltaTime;
         }
         doneSampling = true;
         Debug.Log("Done Sampling, Sampled a total of: " + songData.Count + " Samples");
+        CaluclateData();
     }
 
-    public void CaluclateSamples()
+    public void CaluclateData()
     {
+        AudioRecordData tempData = new AudioRecordData();
+        gameData = new GameData();
 
+        for (int i = 0; i < songData.Count; i++)
+        {
+            if (songData[i].subBass.active && !tempData.subBass.active)
+            {
+                gameData.bassAttack.Add(songData[i].time);
+                tempData.subBass.active = true;
+            }
+            tempData.subBass.active = songData[i].subBass.active;
+        }
+
+        samplingDisplay.SetActive(false);
+        manager.data = gameData;
+        StartCoroutine(manager.PlayGame());
     }
 
     public void GetAudioTypes()
@@ -44,6 +68,8 @@ public class GetAudioData : MonoBehaviour
         float[] spectrum = new float[samples];
         AudioListener.GetSpectrumData(spectrum, 0, FFTWindow.Rectangular);
         AudioRecordData currentData = new AudioRecordData();
+
+        currentData.time = currentTime;
 
         for (int i = 0; i < spectrum.Length; i++)
         {
@@ -81,8 +107,14 @@ public class GetAudioData : MonoBehaviour
                     currentData.lowMidrange = new AudioRecordDataPart(true, spectrum[i]);
                 continue;
             }
-            else if (currentHertz > audioTypes.subBass)
-                GetComponent<MapEffect>().bassValue += beatStrenght * spectrum[i];
+            else if (currentHertz > audioTypes.bass)
+            {
+                if (currentData.bass == null || !currentData.bass.active || currentData.bass.strenght <= spectrum[i])
+                    currentData.bass = new AudioRecordDataPart(true, spectrum[i]);
+                continue;
+            }
+            else if (currentData.subBass == null || !currentData.subBass.active || currentData.subBass.strenght <= spectrum[i])
+                currentData.subBass = new AudioRecordDataPart(true, spectrum[i]);
         }
         songData.Add(currentData);
     }
@@ -115,11 +147,20 @@ public class GetAudioData : MonoBehaviour
 
     public class AudioRecordData
     {
-        public AudioRecordDataPart lowMidrange;
-        public AudioRecordDataPart midrange;
-        public AudioRecordDataPart upperMidrange;
-        public AudioRecordDataPart presence;
-        public AudioRecordDataPart brilliance;
+        public AudioRecordDataPart subBass = new AudioRecordDataPart();
+        public AudioRecordDataPart bass = new AudioRecordDataPart();
+        public AudioRecordDataPart lowMidrange = new AudioRecordDataPart();
+        public AudioRecordDataPart midrange = new AudioRecordDataPart();
+        public AudioRecordDataPart upperMidrange = new AudioRecordDataPart();
+        public AudioRecordDataPart presence = new AudioRecordDataPart();
+        public AudioRecordDataPart brilliance = new AudioRecordDataPart();
+        public float time = 0;
+    }
+
+    [System.Serializable]
+    public class GameData
+    {
+        public List<float> bassAttack = new List<float>();
     }
 
     public class AudioRecordDataPart
@@ -131,6 +172,12 @@ public class GetAudioData : MonoBehaviour
         {
             active = _active;
             strenght = _strenght;
+        }
+
+        public AudioRecordDataPart()
+        {
+            active = false;
+            strenght = 0;
         }
     }
 }
