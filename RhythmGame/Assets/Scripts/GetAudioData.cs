@@ -18,6 +18,11 @@ public class GetAudioData : MonoBehaviour
     public GameObject samplingDisplay;
     public AudioGameManager manager;
     public float currentTime;
+    public float noteSpawnWidth;
+    public float noteSpawnHeight;
+    public Transform noteSpawnPosition;
+    public float noteSpawnLevel;
+    public float heightStrenghtIntensity;
 
     public void Start()
     {
@@ -56,6 +61,26 @@ public class GetAudioData : MonoBehaviour
                 tempData.subBass.active = true;
             }
             tempData.subBass.active = songData[i].subBass.active;
+
+            if (songData[i].midrange.active && !tempData.midrange.active)
+            {
+                if (songData[i].midrange.strenght >= noteSpawnLevel)
+                    gameData.note.Add(new NoteInfo(songData[i].time, new Vector2(Random.Range(-noteSpawnWidth, noteSpawnWidth), Mathf.Lerp(-noteSpawnHeight, noteSpawnHeight, heightStrenghtIntensity * songData[i].midrange.strenght))));
+                tempData.midrange.active = true;
+            }
+            tempData.midrange.active = songData[i].midrange.active;
+            if (songData[i].midrange.strenght < noteSpawnLevel)
+                tempData.midrange.active = false;
+
+            /*if (songData[i].upperMidrange.active && !tempData.upperMidrange.active)
+            {
+                if (songData[i].upperMidrange.strenght >= noteSpawnLevel)
+                    gameData.note.Add(new NoteInfo(songData[i].time, new Vector2(Random.Range(-noteSpawnWidth, noteSpawnWidth), Mathf.Lerp(-noteSpawnHeight, noteSpawnHeight, heightStrenghtIntensity * songData[i].upperMidrange.strenght))));
+                tempData.upperMidrange.active = true;
+            }
+            tempData.upperMidrange.active = songData[i].upperMidrange.active;
+            if (songData[i].upperMidrange.strenght < noteSpawnLevel)
+                tempData.upperMidrange.active = false;*/
         }
 
         samplingDisplay.SetActive(false);
@@ -161,6 +186,19 @@ public class GetAudioData : MonoBehaviour
     public class GameData
     {
         public List<float> bassAttack = new List<float>();
+        public List<NoteInfo> note = new List<NoteInfo>();
+    }
+
+    public class NoteInfo
+    {
+        public float time = 0;
+        public Vector3 position = new Vector3();
+
+        public NoteInfo(float _time, Vector2 _position)
+        {
+            time = _time;
+            position = new Vector3(_position.x, _position.y);
+        }
     }
 
     public class AudioRecordDataPart
