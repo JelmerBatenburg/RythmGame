@@ -4,47 +4,116 @@ using UnityEngine;
 
 public class GetAudioData : MonoBehaviour
 {
+    [Header("Inputs")]
     public AudioSource source;
     public AudioClip clip;
-    public float visualSize;
-    public float detectLevel;
-    public int samples;
-    public AudioTypeList audioTypes;
-    private float hertzASample;
-    public List<AudioRecordData> songData = new List<AudioRecordData>();
-    public bool doneSampling;
-    public float beatStrenght;
-    public GameData gameData;
-    public GameObject samplingDisplay;
     public AudioGameManager manager;
-    public float currentTime;
+
+    [Header("Sampling")]
+    public AudioTypeList audioTypes;
+    public float detectLevel;
+    public List<AudioRecordData> songData = new List<AudioRecordData>();
+    public int sampleDelay;
+    public float noteSpawnLevel;
+
+    [Header("NoteSettings")]
     public float noteSpawnWidth;
     public float noteSpawnHeight;
-    public Transform noteSpawnPosition;
-    public float noteSpawnLevel;
     public float heightStrenghtIntensity;
+    public Transform noteSpawnPosition;
+
+    public float noteLevelGain;
+    public float noteLevelDrop;
+    private float currentNoteLevel;
+    public float bassDelay;
+
+    [Header("Other")]
+    public float visualSize;
+    public GameData gameData;
+    public GameObject samplingDisplay;
 
     public void Start()
     {
+        StartCoroutine(NewCalculateData());
         samplingDisplay.SetActive(true);
         source.clip = clip;
-        source.Play();
-        GetHertz();
-        StartCoroutine(SamplingCheck());
     }
 
-    public IEnumerator SamplingCheck()
+    public IEnumerator NewCalculateData()
     {
-        while (true)
+        clip.LoadAudioData();
+        float[] data = new float[clip.samples * clip.channels];
+        clip.GetData(data, 0);
+        int samplesLenght = data.Length / (AudioSettings.outputSampleRate / 2);
+
+        float hertzASample = (AudioSettings.outputSampleRate / 2f) / samplesLenght;
+        int rounds = data.Length / samplesLenght;
+        float sampleLenght = clip.length / rounds;
+        int i = 0;
+
+        for (int currentRound = 0; currentRound < rounds; currentRound++)
         {
-            GetAudioTypes();
-            if (!source.isPlaying)
-                break;
-            yield return null;
-            currentTime += Time.deltaTime;
+            AudioRecordData currentData = new AudioRecordData();
+            currentData.time = currentRound * sampleLenght;
+            for (int currentSample = 0; currentSample < samplesLenght; currentSample++)
+            {
+                int currentIndex = (currentRound * samplesLenght) + currentSample;
+                float currentHertz = currentSample * hertzASample;
+
+                if (data[currentIndex] < detectLevel)
+                    continue;
+
+                if (currentHertz > audioTypes.brilliance)
+                {
+                    if (currentData.brilliance == null || !currentData.brilliance.active || currentData.brilliance.strenght <= data[currentIndex])
+                        currentData.brilliance = new AudioRecordDataPart(true, data[currentIndex]);
+                    continue;
+                }
+                else if (currentHertz > audioTypes.presence)
+                {
+                    if (currentData.presence == null || !currentData.presence.active || currentData.presence.strenght <= data[currentIndex])
+                        currentData.presence = new AudioRecordDataPart(true, data[currentIndex]);
+                    continue;
+                }
+                else if (currentHertz > audioTypes.upperMidrange)
+                {
+                    if (currentData.upperMidrange == null || !currentData.upperMidrange.active || currentData.upperMidrange.strenght <= data[currentIndex])
+                        currentData.upperMidrange = new AudioRecordDataPart(true, data[currentIndex]);
+                    continue;
+                }
+                else if (currentHertz > audioTypes.midrange)
+                {
+                    if (currentData.midrange == null || !currentData.midrange.active || currentData.midrange.strenght <= data[currentIndex])
+                        currentData.midrange = new AudioRecordDataPart(true, data[currentIndex]);
+                    continue;
+                }
+                else if (currentHertz > audioTypes.lowMidrange)
+                {
+                    if (currentData.lowMidrange == null || !currentData.lowMidrange.active || currentData.lowMidrange.strenght <= data[currentIndex])
+                        currentData.lowMidrange = new AudioRecordDataPart(true, data[currentIndex]);
+                    continue;
+                }
+                else if (currentHertz > audioTypes.bass)
+                {
+                    if (currentData.bass == null || !currentData.bass.active || currentData.bass.strenght <= data[currentIndex])
+                        currentData.bass = new AudioRecordDataPart(true, data[currentIndex]);
+                    continue;
+                }
+                else if (currentData.subBass == null || !currentData.subBass.active || currentData.subBass.strenght <= data[currentIndex])
+                    currentData.subBass = new AudioRecordDataPart(true, data[currentIndex]);
+            }
+
+            songData.Add(currentData);
+
+            if (i >= sampleDelay)
+            {
+                i = 0;
+                yield return null;
+                Debug.Log(currentRound + " / " + rounds);
+            }
+            i++;
         }
-        doneSampling = true;
-        Debug.Log("Done Sampling, Sampled a total of: " + songData.Count + " Samples");
+        Debug.Log("DoneSampling");
         CaluclateData();
     }
 
@@ -57,102 +126,39 @@ public class GetAudioData : MonoBehaviour
         {
             if (songData[i].subBass.active && !tempData.subBass.active)
             {
-                gameData.bassAttack.Add(songData[i].time);
+                if (gameData.bassAttack.Count == 0 || gameData.bassAttack[gameData.bassAttack.Count - 1] + bassDelay <= songData[i].time)
+                    gameData.bassAttack.Add(songData[i].time);
                 tempData.subBass.active = true;
             }
             tempData.subBass.active = songData[i].subBass.active;
 
             if (songData[i].midrange.active && !tempData.midrange.active)
             {
-                if (songData[i].midrange.strenght >= noteSpawnLevel)
-                    gameData.note.Add(new NoteInfo(songData[i].time, new Vector2(Random.Range(-noteSpawnWidth, noteSpawnWidth), Mathf.Lerp(-noteSpawnHeight, noteSpawnHeight, heightStrenghtIntensity * songData[i].midrange.strenght))));
+                if (songData[i].midrange.strenght >= currentNoteLevel)
+                {
+                    currentNoteLevel = songData[i].midrange.strenght + noteLevelGain;
+                    gameData.note.Add(new NoteInfo(songData[i].time, new Vector2(Random.Range(-noteSpawnWidth, noteSpawnWidth), Mathf.Lerp(-noteSpawnHeight, noteSpawnHeight, heightStrenghtIntensity * (songData[i].midrange.strenght - detectLevel)))));
+                }
                 tempData.midrange.active = true;
             }
+            currentNoteLevel -= noteLevelDrop;
+            if (currentNoteLevel <= noteSpawnLevel)
+                currentNoteLevel = noteSpawnLevel;
             tempData.midrange.active = songData[i].midrange.active;
             if (songData[i].midrange.strenght < noteSpawnLevel)
                 tempData.midrange.active = false;
-
-            /*if (songData[i].upperMidrange.active && !tempData.upperMidrange.active)
-            {
-                if (songData[i].upperMidrange.strenght >= noteSpawnLevel)
-                    gameData.note.Add(new NoteInfo(songData[i].time, new Vector2(Random.Range(-noteSpawnWidth, noteSpawnWidth), Mathf.Lerp(-noteSpawnHeight, noteSpawnHeight, heightStrenghtIntensity * songData[i].upperMidrange.strenght))));
-                tempData.upperMidrange.active = true;
-            }
-            tempData.upperMidrange.active = songData[i].upperMidrange.active;
-            if (songData[i].upperMidrange.strenght < noteSpawnLevel)
-                tempData.upperMidrange.active = false;*/
         }
+        Debug.Log("bass :" + gameData.bassAttack.Count);
 
         samplingDisplay.SetActive(false);
         manager.data = gameData;
         StartCoroutine(manager.PlayGame());
     }
 
-    public void GetAudioTypes()
-    {
-        float[] spectrum = new float[samples];
-        AudioListener.GetSpectrumData(spectrum, 0, FFTWindow.Rectangular);
-        AudioRecordData currentData = new AudioRecordData();
-
-        currentData.time = currentTime;
-
-        for (int i = 0; i < spectrum.Length; i++)
-        {
-            float currentHertz = i * hertzASample;
-            if (spectrum[i] < detectLevel)
-                continue;
-
-            if (currentHertz > audioTypes.brilliance)
-            {
-                if (currentData.brilliance == null || !currentData.brilliance.active || currentData.brilliance.strenght <= spectrum[i])
-                    currentData.brilliance = new AudioRecordDataPart(true, spectrum[i]);
-                continue;
-            }
-            else if (currentHertz > audioTypes.presence)
-            {
-                if (currentData.presence == null || !currentData.presence.active || currentData.presence.strenght <= spectrum[i])
-                    currentData.presence = new AudioRecordDataPart(true, spectrum[i]);
-                continue;
-            }
-            else if (currentHertz > audioTypes.upperMidrange)
-            {
-                if (currentData.upperMidrange == null || !currentData.upperMidrange.active || currentData.upperMidrange.strenght <= spectrum[i])
-                    currentData.upperMidrange = new AudioRecordDataPart(true, spectrum[i]);
-                continue;
-            }
-            else if (currentHertz > audioTypes.midrange)
-            {
-                if (currentData.midrange == null || !currentData.midrange.active || currentData.midrange.strenght <= spectrum[i])
-                    currentData.midrange = new AudioRecordDataPart(true, spectrum[i]);
-                continue;
-            }
-            else if (currentHertz > audioTypes.lowMidrange)
-            {
-                if (currentData.lowMidrange == null || !currentData.lowMidrange.active || currentData.lowMidrange.strenght <= spectrum[i])
-                    currentData.lowMidrange = new AudioRecordDataPart(true, spectrum[i]);
-                continue;
-            }
-            else if (currentHertz > audioTypes.bass)
-            {
-                if (currentData.bass == null || !currentData.bass.active || currentData.bass.strenght <= spectrum[i])
-                    currentData.bass = new AudioRecordDataPart(true, spectrum[i]);
-                continue;
-            }
-            else if (currentData.subBass == null || !currentData.subBass.active || currentData.subBass.strenght <= spectrum[i])
-                currentData.subBass = new AudioRecordDataPart(true, spectrum[i]);
-        }
-        songData.Add(currentData);
-    }
-
-    public void GetHertz()
-    {
-        hertzASample = (AudioSettings.outputSampleRate / 2) / samples;
-    }
-
     public void OnDrawGizmos()
     {
         Gizmos.color = Color.blue;
-        float[] spectrum = new float[samples];
+        float[] spectrum = new float[1024];
         AudioListener.GetSpectrumData(spectrum, 0, FFTWindow.Rectangular);
         for (int i = 0; i < (spectrum.Length - 1f) / 2f; i++)
             Gizmos.DrawCube(new Vector3(i * 1.4f, spectrum[i] * visualSize / 2, 0), new Vector3(1, spectrum[i] * visualSize, 1));
