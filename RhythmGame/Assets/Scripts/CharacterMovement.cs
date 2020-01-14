@@ -1,55 +1,59 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class CharacterMovement : MonoBehaviour
 {
     public float maxMovementWidth;
-    public Vector3 force;
-    public float movementSpeed;
-    public float moveHeight;
-    public float jumpHeight;
-    public float gravity;
-    public bool onGround;
-    public float verticalLerp;
-    public float horizontalLerp;
-    public float fallingModifier;
+    public float mouseMoveAmount;
+    Vector3 center;
+
+    public LayerMask noteMask;
+    public float noteDetectRange;
+    public string detectionInput;
+    public int score;
+    public Text scoreInput;
+
+    public void Start()
+    {
+        center = transform.position;
+    }
 
     public void Update()
     {
         Move();
+        Detect();
+    }
+
+    public void Detect()
+    {
+        if (Input.GetButtonDown(detectionInput))
+            foreach (Collider col in Physics.OverlapBox(transform.position, new Vector3(noteDetectRange, noteDetectRange, noteDetectRange * 2f), Quaternion.identity, noteMask))
+            {
+                score++;
+                Destroy(col.gameObject);
+                scoreInput.text = "Score: " + score.ToString();
+            }
     }
 
     public void Move()
     {
-        force += Vector3.right * Input.GetAxisRaw("Horizontal") * Time.deltaTime * movementSpeed;
+        float width = Screen.width;
+        float mousePos = Input.mousePosition.x;
 
-        if (force.x > 0 && transform.position.x >= maxMovementWidth || force.x < 0 && transform.position.x <= -maxMovementWidth)
-            force.x = 0;
-
-        if (!onGround && transform.position.y <= moveHeight && force.y < 0)
-        {
-            force.y = 0;
-            onGround = true;
-        }
-        else if (!onGround)
-            force += Vector3.down * gravity * Time.deltaTime * ((force.y <= 0) ? fallingModifier : 1f);
-        else if (Input.GetButtonDown("Jump"))
-        {
-            onGround = false;
-            force += Vector3.up * jumpHeight;
-        }
-
-        force.y = Mathf.Lerp(force.y, 0, verticalLerp * Time.deltaTime);
-        force.x = Mathf.Lerp(force.x, 0, horizontalLerp * Time.deltaTime);
-
-        transform.position += force * Time.deltaTime;
+        float currentPos = 1f / width * mousePos;
+        transform.position = center + (Vector3.right * mouseMoveAmount * (currentPos - 0.5f));
+        if (transform.position.x >= center.x + maxMovementWidth)
+            transform.position = center + (Vector3.right * maxMovementWidth);
+        if (transform.position.x <= center.x - maxMovementWidth)
+            transform.position = center + (-Vector3.right * maxMovementWidth);
     }
 
     public void OnDrawGizmos()
     {
-        Gizmos.DrawWireCube(Vector3.up * moveHeight, Vector3.right * maxMovementWidth * 2f + transform.forward);
-        Gizmos.DrawWireCube(new Vector3(maxMovementWidth, moveHeight + 1f), new Vector3(0, 2f, 1));
-        Gizmos.DrawWireCube(new Vector3(-maxMovementWidth, moveHeight + 1f), new Vector3(0, 2f, 1));
+        Gizmos.DrawWireCube(new Vector3(maxMovementWidth, transform.position.y), new Vector3(0, 2f, 1));
+        Gizmos.DrawWireCube(new Vector3(-maxMovementWidth, transform.position.y), new Vector3(0, 2f, 1));
+        Gizmos.DrawWireSphere(transform.position, noteDetectRange);
     }
 }

@@ -17,6 +17,7 @@ public class GetAudioData : MonoBehaviour
     public float noteSpawnLevel;
 
     [Header("NoteSettings")]
+    public float noteOffsetRange;
     public float noteSpawnWidth;
     public float noteSpawnHeight;
     public float heightStrenghtIntensity;
@@ -121,6 +122,7 @@ public class GetAudioData : MonoBehaviour
     {
         AudioRecordData tempData = new AudioRecordData();
         gameData = new GameData();
+        float currentValue = 0.5f;
 
         for (int i = 0; i < songData.Count; i++)
         {
@@ -132,23 +134,56 @@ public class GetAudioData : MonoBehaviour
             }
             tempData.subBass.active = songData[i].subBass.active;
 
+            if (songData[i].bass.active && !tempData.bass.active)
+            {
+                if (gameData.bassAttack.Count == 0 || gameData.bassAttack[gameData.bassAttack.Count - 1] + bassDelay <= songData[i].time)
+                    gameData.bassAttack.Add(songData[i].time);
+                tempData.bass.active = true;
+            }
+            tempData.bass.active = songData[i].subBass.active;
+
+
             if (songData[i].midrange.active && !tempData.midrange.active)
             {
                 if (songData[i].midrange.strenght >= currentNoteLevel)
                 {
                     currentNoteLevel = songData[i].midrange.strenght + noteLevelGain;
-                    gameData.note.Add(new NoteInfo(songData[i].time, new Vector2(Random.Range(-noteSpawnWidth, noteSpawnWidth), Mathf.Lerp(-noteSpawnHeight, noteSpawnHeight, heightStrenghtIntensity * (songData[i].midrange.strenght - detectLevel)))));
+                    currentValue += Random.Range(-noteOffsetRange, noteOffsetRange);
+                    if (currentValue <= 0)
+                        currentValue = 0;
+                    if (currentValue >= 1)
+                        currentValue = 1;
+                    gameData.note.Add(new NoteInfo(songData[i].time, new Vector2(Mathf.Lerp(-noteSpawnWidth, noteSpawnWidth,currentValue), Mathf.Lerp(-noteSpawnHeight, noteSpawnHeight, heightStrenghtIntensity * (songData[i].midrange.strenght - detectLevel)))));
                 }
                 tempData.midrange.active = true;
             }
-            currentNoteLevel -= noteLevelDrop;
-            if (currentNoteLevel <= noteSpawnLevel)
-                currentNoteLevel = noteSpawnLevel;
             tempData.midrange.active = songData[i].midrange.active;
             if (songData[i].midrange.strenght < noteSpawnLevel)
                 tempData.midrange.active = false;
+
+            if (songData[i].upperMidrange.active && !tempData.upperMidrange.active)
+            {
+                if (songData[i].upperMidrange.strenght >= currentNoteLevel)
+                {
+                    currentNoteLevel = songData[i].upperMidrange.strenght + noteLevelGain;
+                    currentValue += Random.Range(-noteOffsetRange, noteOffsetRange);
+                    if (currentValue <= 0)
+                        currentValue = 0;
+                    if (currentValue >= 1)
+                        currentValue = 1;
+                    gameData.note.Add(new NoteInfo(songData[i].time, new Vector2(Mathf.Lerp(-noteSpawnWidth, noteSpawnWidth, currentValue), Mathf.Lerp(-noteSpawnHeight, noteSpawnHeight, heightStrenghtIntensity * (songData[i].lowMidrange.strenght - detectLevel)))));
+                }
+                tempData.upperMidrange.active = true;
+            }
+            tempData.upperMidrange.active = songData[i].upperMidrange.active;
+            if (songData[i].upperMidrange.strenght < noteSpawnLevel)
+                tempData.upperMidrange.active = false;
+
+
+            currentNoteLevel -= noteLevelDrop;
+            if (currentNoteLevel <= noteSpawnLevel)
+                currentNoteLevel = noteSpawnLevel;
         }
-        Debug.Log("bass :" + gameData.bassAttack.Count);
 
         samplingDisplay.SetActive(false);
         manager.data = gameData;
