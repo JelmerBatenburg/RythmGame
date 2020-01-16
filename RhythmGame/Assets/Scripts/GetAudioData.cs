@@ -15,6 +15,7 @@ public class GetAudioData : MonoBehaviour
     public List<AudioRecordData> songData = new List<AudioRecordData>();
     public int sampleDelay;
     public float noteSpawnLevel;
+    public float lineCombineTime;
 
     [Header("NoteSettings")]
     public float noteOffsetRange;
@@ -122,72 +123,64 @@ public class GetAudioData : MonoBehaviour
     {
         AudioRecordData tempData = new AudioRecordData();
         gameData = new GameData();
-        float currentValue = 0.5f;
+        for (int i = 0; i < 7; i++)
+            gameData.types.Add(new List<GameDataPart>());
 
         for (int i = 0; i < songData.Count; i++)
         {
-            if (songData[i].subBass.active && !tempData.subBass.active)
-            {
-                if (gameData.bassAttack.Count == 0 || gameData.bassAttack[gameData.bassAttack.Count - 1] + bassDelay <= songData[i].time)
-                    gameData.bassAttack.Add(songData[i].time);
-                tempData.subBass.active = true;
-            }
-            tempData.subBass.active = songData[i].subBass.active;
+            if (songData[i].subBass.active)
+                gameData.types[1].Add(new GameDataPart(songData[i].time));
 
-            if (songData[i].bass.active && !tempData.bass.active)
-            {
-                if (gameData.bassAttack.Count == 0 || gameData.bassAttack[gameData.bassAttack.Count - 1] + bassDelay <= songData[i].time)
-                    gameData.bassAttack.Add(songData[i].time);
-                tempData.bass.active = true;
-            }
-            tempData.bass.active = songData[i].subBass.active;
+            if (songData[i].bass.active)
+                gameData.types[1].Add(new GameDataPart(songData[i].time));
 
+            if (songData[i].lowMidrange.active)
+                gameData.types[2].Add(new GameDataPart(songData[i].time));
 
-            if (songData[i].midrange.active && !tempData.midrange.active)
-            {
-                if (songData[i].midrange.strenght >= currentNoteLevel)
-                {
-                    currentNoteLevel = songData[i].midrange.strenght + noteLevelGain;
-                    currentValue += Random.Range(-noteOffsetRange, noteOffsetRange);
-                    if (currentValue <= 0)
-                        currentValue = 0;
-                    if (currentValue >= 1)
-                        currentValue = 1;
-                    gameData.note.Add(new NoteInfo(songData[i].time, new Vector2(Mathf.Lerp(-noteSpawnWidth, noteSpawnWidth,currentValue), Mathf.Lerp(-noteSpawnHeight, noteSpawnHeight, heightStrenghtIntensity * (songData[i].midrange.strenght - detectLevel)))));
-                }
-                tempData.midrange.active = true;
-            }
-            tempData.midrange.active = songData[i].midrange.active;
-            if (songData[i].midrange.strenght < noteSpawnLevel)
-                tempData.midrange.active = false;
+            if (songData[i].midrange.active)
+                gameData.types[3].Add(new GameDataPart(songData[i].time));
 
-            if (songData[i].upperMidrange.active && !tempData.upperMidrange.active)
-            {
-                if (songData[i].upperMidrange.strenght >= currentNoteLevel)
-                {
-                    currentNoteLevel = songData[i].upperMidrange.strenght + noteLevelGain;
-                    currentValue += Random.Range(-noteOffsetRange, noteOffsetRange);
-                    if (currentValue <= 0)
-                        currentValue = 0;
-                    if (currentValue >= 1)
-                        currentValue = 1;
-                    gameData.note.Add(new NoteInfo(songData[i].time, new Vector2(Mathf.Lerp(-noteSpawnWidth, noteSpawnWidth, currentValue), Mathf.Lerp(-noteSpawnHeight, noteSpawnHeight, heightStrenghtIntensity * (songData[i].lowMidrange.strenght - detectLevel)))));
-                }
-                tempData.upperMidrange.active = true;
-            }
-            tempData.upperMidrange.active = songData[i].upperMidrange.active;
-            if (songData[i].upperMidrange.strenght < noteSpawnLevel)
-                tempData.upperMidrange.active = false;
+            if (songData[i].upperMidrange.active)
+                gameData.types[4].Add(new GameDataPart(songData[i].time));
 
+            if (songData[i].presence.active)
+                gameData.types[5].Add(new GameDataPart(songData[i].time));
 
-            currentNoteLevel -= noteLevelDrop;
-            if (currentNoteLevel <= noteSpawnLevel)
-                currentNoteLevel = noteSpawnLevel;
+            if (songData[i].brilliance.active)
+                gameData.types[6].Add(new GameDataPart(songData[i].time));
         }
 
         samplingDisplay.SetActive(false);
-        manager.data = gameData;
+        manager.data = FilterLines(gameData);
         StartCoroutine(manager.PlayGame());
+    }
+
+    public GameData FilterLines(GameData data)
+    {
+        GameData newData = new GameData();
+        for (int i = 0; i < 7; i++)
+            newData.types.Add(new List<GameDataPart>());
+
+        for (int i = 0; i < data.types.Count; i++)
+        {
+            foreach (GameDataPart part in data.types[i])
+            {
+                if (newData.types[i].Count == 0 || part.time - (newData.types[i][newData.types[i].Count - 1].time + newData.types[i][newData.types[i].Count - 1].lenght) >= lineCombineTime)
+                    newData.types[i].Add(part);
+                else
+                {
+                    GameDataPart lastPart = newData.types[i][newData.types[i].Count - 1];
+                    if (lastPart.dataType == GameDataPart.DataType.String && part.time - (lastPart.time + lastPart.lenght) <= lineCombineTime)
+                        newData.types[i][newData.types[i].Count - 1].lenght = part.time - lastPart.time;
+                    else if (part.time - lastPart.time <= lineCombineTime)
+                    {
+                        newData.types[i][newData.types[i].Count - 1].dataType = GameDataPart.DataType.String;
+                        newData.types[i][newData.types[i].Count - 1].lenght = part.time - lastPart.time;
+                    }
+                }
+            }
+        }
+        return newData;
     }
 
     public void OnDrawGizmos()
@@ -226,19 +219,27 @@ public class GetAudioData : MonoBehaviour
     [System.Serializable]
     public class GameData
     {
-        public List<float> bassAttack = new List<float>();
-        public List<NoteInfo> note = new List<NoteInfo>();
+        public List<List<GameDataPart>> types = new List<List<GameDataPart>>(7);
     }
 
-    public class NoteInfo
+    public class GameDataPart
     {
-        public float time = 0;
-        public Vector3 position = new Vector3();
-
-        public NoteInfo(float _time, Vector2 _position)
+        public enum DataType { Note, String}
+        public DataType dataType;
+        public float time;
+        public float lenght;
+        
+        public  GameDataPart(float _time)
         {
+            dataType = DataType.Note;
             time = _time;
-            position = new Vector3(_position.x, _position.y);
+        }
+
+        public GameDataPart(float _time, float _Lenght)
+        {
+            dataType = DataType.Note;
+            time = _time;
+            lenght = _Lenght;
         }
     }
 
