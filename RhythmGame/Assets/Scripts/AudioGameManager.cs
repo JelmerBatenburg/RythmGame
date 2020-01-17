@@ -17,6 +17,7 @@ public class AudioGameManager : MonoBehaviour
     int[] currentIndexes = new int[7];
     public Color[] colors = new Color[7];
     public string[] inputs = new string[7];
+    public SkinnedMeshRenderer[] inputObjects = new SkinnedMeshRenderer[7];
     public float inputOffset;
     public float inptRange;
     public LayerMask noteMask;
@@ -52,13 +53,17 @@ public class AudioGameManager : MonoBehaviour
     {
         for (int i = 0; i < 7; i++)
         {
+            if(Input.GetButton(inputs[i]) && inputObjects[i])
+                inputObjects[i].SetBlendShapeWeight(0, 100f);
+            else if (inputObjects[i])
+                inputObjects[i].SetBlendShapeWeight(0, 0f);
+
             Vector3 point = spawnPoint.position + (Vector3.back * inputOffset) + (Vector3.right * Mathf.Lerp(-spawnWidth, spawnWidth, 1f / 7f * i));
             if (Input.GetButton(inputs[i]) && Physics.CheckSphere(point, inptRange, noteMask))
             {
                 Note interactedNote = Physics.OverlapSphere(point, inptRange, noteMask)[0].GetComponent<Note>();
                 if (!interactedNote.pressed && interactedNote.isString)
                 {
-                    Destroy(Instantiate(particle, point, particle.transform.rotation), 2f);
                     if (!interactedNote.hasInteracted)
                     {
                         MeshRenderer renderer = interactedNote.GetComponent<MeshRenderer>();
@@ -67,9 +72,8 @@ public class AudioGameManager : MonoBehaviour
                     }
                     interactedNote.Interacted(this);
                 }
-                else if(!interactedNote.pressed && Input.GetButtonDown(inputs[i]))
+                else if (!interactedNote.pressed && Input.GetButtonDown(inputs[i]))
                 {
-                    Destroy(Instantiate(particle, point, particle.transform.rotation), 2f);
                     if (!interactedNote.hasInteracted)
                     {
                         MeshRenderer renderer = interactedNote.GetComponent<MeshRenderer>();

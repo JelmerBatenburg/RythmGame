@@ -14,23 +14,11 @@ public class GetAudioData : MonoBehaviour
     public float detectLevel;
     public List<AudioRecordData> songData = new List<AudioRecordData>();
     public int sampleDelay;
-    public float noteSpawnLevel;
+    public float noteDetectMultiplier;
     public float lineCombineTime;
-
-    [Header("NoteSettings")]
-    public float noteOffsetRange;
-    public float noteSpawnWidth;
-    public float noteSpawnHeight;
-    public float heightStrenghtIntensity;
     public Transform noteSpawnPosition;
 
-    public float noteLevelGain;
-    public float noteLevelDrop;
-    private float currentNoteLevel;
-    public float bassDelay;
-
     [Header("Other")]
-    public float visualSize;
     public GameData gameData;
     public GameObject samplingDisplay;
 
@@ -52,6 +40,17 @@ public class GetAudioData : MonoBehaviour
         int rounds = data.Length / samplesLenght;
         float sampleLenght = clip.length / rounds;
         int i = 0;
+
+        detectLevel = 0;
+        int amount = 0;
+        foreach (float value in data)
+            if(value >= 0.1f)
+            {
+                detectLevel += value;
+                amount++;
+            }
+        detectLevel /= amount;
+        detectLevel *= noteDetectMultiplier;
 
         for (int currentRound = 0; currentRound < rounds; currentRound++)
         {
@@ -181,15 +180,6 @@ public class GetAudioData : MonoBehaviour
             }
         }
         return newData;
-    }
-
-    public void OnDrawGizmos()
-    {
-        Gizmos.color = Color.blue;
-        float[] spectrum = new float[1024];
-        AudioListener.GetSpectrumData(spectrum, 0, FFTWindow.Rectangular);
-        for (int i = 0; i < (spectrum.Length - 1f) / 2f; i++)
-            Gizmos.DrawCube(new Vector3(i * 1.4f, spectrum[i] * visualSize / 2, 0), new Vector3(1, spectrum[i] * visualSize, 1));
     }
 
     [System.Serializable]
