@@ -31,8 +31,8 @@ public class AudioGameManager : MonoBehaviour
         while (currentTime <= offset)
         {
             CheckSpawn();
-            CheckInputs();
-            pointDisplay.text = "Points: " + points.ToString();
+            //CheckInputs();
+            //pointDisplay.text = "Points: " + points.ToString();
             currentTime += Time.deltaTime;
             yield return null;
         }
@@ -42,14 +42,14 @@ public class AudioGameManager : MonoBehaviour
         while (source.isPlaying)
         {
             CheckSpawn();
-            CheckInputs();
-            pointDisplay.text = "Points: " + points.ToString();
+            //CheckInputs();
+            //pointDisplay.text = "Points: " + points.ToString();
             currentTime += Time.deltaTime;
             yield return null;
         }
     }
 
-    public void CheckInputs()
+    /*public void CheckInputs()
     {
         for (int i = 0; i < 7; i++)
         {
@@ -84,7 +84,7 @@ public class AudioGameManager : MonoBehaviour
                 }
             }
         }
-    }
+    }*/
 
     public void CheckSpawn()
     {
